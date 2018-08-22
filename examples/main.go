@@ -1,20 +1,32 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"log"
 	math_rand "math/rand"
 	"time"
 
-	"github.com/schollz/peerdiscovery"
+	"github.com/mic90/peerdiscovery"
 	"github.com/schollz/progressbar"
 )
 
+var allowSelf bool
+
+func init() {
+	flag.BoolVar(&allowSelf, "self", false, "If set to true, will allow self-host discovery")
+}
+
+const timeout = 10
+
 func main() {
-	fmt.Println("Scanning for 10 seconds to find LAN peers")
+	flag.Parse()
+
+	fmt.Printf("Scanning for %d seconds to find LAN peers\n", timeout)
 	// show progress bar
 	go func() {
-		bar := progressbar.New(10)
+		bar := progressbar.New(timeout)
 		for i := 0; i < 10; i++ {
 			bar.Add(1)
 			time.Sleep(1 * time.Second)
@@ -23,12 +35,14 @@ func main() {
 	}()
 
 	// discover peers
-	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+	discovery, err := peerdiscovery.NewPeerDiscovery(peerdiscovery.Settings{
 		Limit:     -1,
+		AllowSelf: allowSelf,
 		Payload:   []byte(randStringBytesMaskImprSrc(10)),
 		Delay:     500 * time.Millisecond,
-		TimeLimit: 10 * time.Second,
 	})
+	context, _ := context.WithTimeout(context.Background(), timeout*time.Second)
+	discoveries, err := discovery.Discover(context)
 
 	// print out results
 	if err != nil {
@@ -40,7 +54,7 @@ func main() {
 				fmt.Printf("%d) '%s' with payload '%s'\n", i, d.Address, d.Payload)
 			}
 		} else {
-			fmt.Println("Found no devices. You need to run this on another computer at the same time.")
+			fmt.Println("\nFound no devices. You need to run this on another computer at the same time.")
 		}
 	}
 }
